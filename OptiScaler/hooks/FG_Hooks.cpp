@@ -1232,7 +1232,7 @@ ULONG FGHooks::hkFGRelease(IUnknown* This)
 
     This->AddRef();
 
-    if (!Config::Instance()->FGPreserveSwapChain.value_or_default())
+    if (!Config::Instance()->FGPreserveSwapChain.value_or_default() || State::Instance().activeFgInput == FGInput::DLSSG)
     {
         if (o_FGRelease(This) == 1)
         {

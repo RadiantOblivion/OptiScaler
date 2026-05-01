@@ -218,7 +218,7 @@ bool XeFG_Dx12::CreateSwapchain(IDXGIFactory* factory, ID3D12CommandQueue* cmdQu
 {
     if (State::Instance().currentFGSwapchain != nullptr && _hwnd == desc->OutputWindow)
     {
-        if (Config::Instance()->FGPreserveSwapChain.value_or_default())
+        if (Config::Instance()->FGPreserveSwapChain.value_or_default() && State::Instance().activeFgInput != FGInput::DLSSG)
         {
             LOG_WARN("FG swapchain already created for the same output window!");
             auto result = State::Instance().currentFGSwapchain->ResizeBuffers(
@@ -426,7 +426,7 @@ bool XeFG_Dx12::CreateSwapchain1(IDXGIFactory* factory, ID3D12CommandQueue* cmdQ
 {
     if (State::Instance().currentFGSwapchain != nullptr && _hwnd == hwnd)
     {
-        if (Config::Instance()->FGPreserveSwapChain.value_or_default())
+        if (Config::Instance()->FGPreserveSwapChain.value_or_default() && State::Instance().activeFgInput != FGInput::DLSSG)
         {
             LOG_WARN("FG swapchain already created for the same output window!");
             auto result = State::Instance().currentFGSwapchain->ResizeBuffers(

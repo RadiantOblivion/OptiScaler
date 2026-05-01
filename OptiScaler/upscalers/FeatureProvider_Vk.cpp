@@ -142,11 +142,13 @@ bool FeatureProvider_Vk::ChangeFeature(Upscaler upscaler, VkInstance instance, V
 
             State::Instance().currentFeature = nullptr;
 
-            LOG_DEBUG("sleeping before reset of current feature for 1000ms");
-            std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+            Util::DelayedDestroy(std::move(contextData->feature));
 
-            contextData->feature.reset();
-            contextData->feature = nullptr;
+            // LOG_DEBUG("sleeping before reset of current feature for 1000ms");
+            // std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+
+            // contextData->feature.reset();
+            // contextData->feature = nullptr;
         }
         else
         {

@@ -1272,10 +1272,6 @@ void FSRFG_Dx12::EvaluateState(ID3D12Device* device, FG_Constants& fgConstants)
 
         // Pause for 10 frames
         UpdateTarget();
-
-        // Release FG mutex
-        if (Mutex.getOwner() == 2)
-            Mutex.unlockThis(2);
     }
 
     State::Instance().SCchanged = false;

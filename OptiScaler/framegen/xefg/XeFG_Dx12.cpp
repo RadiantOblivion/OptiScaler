@@ -1063,17 +1063,11 @@ void XeFG_Dx12::EvaluateState(ID3D12Device* device, FG_Constants& fgConstants)
     if (state.FGchanged)
     {
         LOG_DEBUG("FGchanged");
-
         state.FGchanged = false;
-
         Hudfix_Dx12::ResetCounters();
 
         // Pause for 10 frames
         UpdateTarget();
-
-        // Release FG mutex
-        if (Mutex.getOwner() == 2)
-            Mutex.unlockThis(2);
     }
 
     state.SCchanged = false;

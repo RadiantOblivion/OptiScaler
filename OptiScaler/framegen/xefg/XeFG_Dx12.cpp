@@ -226,6 +226,7 @@ bool XeFG_Dx12::CreateSwapchain(IDXGIFactory* factory, ID3D12CommandQueue* cmdQu
                               desc->BufferDesc.Format, desc->Flags) == S_OK;
 
             *swapChain = State::Instance().currentFGSwapchain;
+            (*swapChain)->AddRef();
             return result;
         }
         // Game is creating new swapchain without releasing old one,
@@ -432,6 +433,7 @@ bool XeFG_Dx12::CreateSwapchain1(IDXGIFactory* factory, ID3D12CommandQueue* cmdQ
                               desc->BufferCount, desc->Width, desc->Height, desc->Format, desc->Flags) == S_OK;
 
             *swapChain = (IDXGISwapChain1*) State::Instance().currentFGSwapchain;
+            (*swapChain)->AddRef();
             return result;
         }
         // Game is creating new swapchain without releasing old one,

@@ -197,6 +197,11 @@ HRESULT FGHooks::CreateSwapChain(IDXGIFactory* pFactory, IUnknown* pDevice, DXGI
         _hwnd = pDesc->OutputWindow;
         State::Instance().currentFGSwapchain = *ppSwapChain;
 
+        if (oldSwapChain == State::Instance().currentFGSwapchain)
+        {
+            oldSwapChain = nullptr;
+        }
+
         HookFGSwapchain(*ppSwapChain);
 
         State::Instance().currentSwapchain = *ppSwapChain;
@@ -324,6 +329,11 @@ HRESULT FGHooks::CreateSwapChainForHwnd(IDXGIFactory* pFactory, IUnknown* pDevic
 
         _hwnd = hWnd;
         State::Instance().currentFGSwapchain = *ppSwapChain;
+
+        if (oldSwapChain == State::Instance().currentFGSwapchain)
+        {
+            oldSwapChain = nullptr;
+        }
 
         HookFGSwapchain(*ppSwapChain);
         State::Instance().currentSwapchain = *ppSwapChain;

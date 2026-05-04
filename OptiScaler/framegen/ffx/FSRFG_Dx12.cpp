@@ -832,6 +832,11 @@ bool FSRFG_Dx12::CreateSwapchain(IDXGIFactory* factory, ID3D12CommandQueue* cmdQ
     createSwapChainDesc.desc = desc;
     createSwapChainDesc.swapchain = (IDXGISwapChain4**) swapChain;
 
+    ffxCreateContextDescFrameGenerationSwapChainVersionDX12 versionDesc {};
+    versionDesc.header.type = FFX_API_CREATE_CONTEXT_DESC_TYPE_FRAMEGENERATIONSWAPCHAIN_VERSION_DX12;
+    versionDesc.version = FFX_FRAMEGENERATION_SWAPCHAIN_DX12_VERSION;
+    createSwapChainDesc.header.pNext = &versionDesc.header;
+
     auto result = FfxApiProxy::D3D12_CreateContext(&_swapChainContext, &createSwapChainDesc.header, nullptr);
 
     if (result == FFX_API_RETURN_OK)
@@ -908,6 +913,11 @@ bool FSRFG_Dx12::CreateSwapchain1(IDXGIFactory* factory, ID3D12CommandQueue* cmd
     createSwapChainDesc.gameQueue = realQueue;
     createSwapChainDesc.desc = desc;
     createSwapChainDesc.swapchain = (IDXGISwapChain4**) swapChain;
+
+    ffxCreateContextDescFrameGenerationSwapChainVersionDX12 versionDesc {};
+    versionDesc.header.type = FFX_API_CREATE_CONTEXT_DESC_TYPE_FRAMEGENERATIONSWAPCHAIN_VERSION_DX12;
+    versionDesc.version = FFX_FRAMEGENERATION_SWAPCHAIN_DX12_VERSION;
+    createSwapChainDesc.header.pNext = &versionDesc.header;
 
     auto result = FfxApiProxy::D3D12_CreateContext(&_swapChainContext, &createSwapChainDesc.header, nullptr);
 
@@ -1106,6 +1116,11 @@ void FSRFG_Dx12::CreateContext(ID3D12Device* device, FG_Constants& fgConstants)
         override.header.type = FFX_API_DESC_TYPE_OVERRIDE_VERSION;
         override.versionId = State::Instance().ffxFGVersionIds[Config::Instance()->FfxFGIndex.value_or_default()];
         backendDesc.header.pNext = &override.header;
+
+        ffxCreateContextDescFrameGenerationVersion versionDesc = { 0 };
+        versionDesc.header.type = FFX_API_CREATE_CONTEXT_DESC_TYPE_FRAMEGENERATION_VERSION;
+        versionDesc.version = FFX_FRAMEGENERATION_VERSION;
+        override.header.pNext = &versionDesc.header;
 
         ParseVersion(State::Instance().ffxFGVersionNames[Config::Instance()->FfxFGIndex.value_or_default()], &_version);
 

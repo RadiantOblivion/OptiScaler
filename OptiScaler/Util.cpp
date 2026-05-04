@@ -363,7 +363,7 @@ bool Util::IsSubpath(const std::filesystem::path& path, const std::filesystem::p
 }
 
 std::optional<std::filesystem::path> Util::FindFilePath(const std::filesystem::path& startDir,
-                                                        const std::filesystem::path fileName)
+                                                        const std::filesystem::path& fileName)
 {
     std::filesystem::path optiPath(Config::Instance()->MainDllPath.value());
     auto normalizedOptiPath = optiPath.lexically_normal();

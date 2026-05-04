@@ -73,8 +73,7 @@ std::string GetWindowsName(const OSVERSIONINFOW& os);
 std::wstring GetExeProductName();
 std::wstring GetWindowTitle(HWND hwnd);
 std::optional<std::filesystem::path> FindFilePath(const std::filesystem::path& startDir,
-                                                  const std::filesystem::path fileName);
-std::optional<std::filesystem::path> WhoIsTheCallerPath(void* returnAddress);
+                                                  const std::filesystem::path& fileName);
 std::string WhoIsTheCaller(void* returnAddress);
 HMODULE GetCallerModule(void* returnAddress);
 MonitorInfo GetMonitorInfoForWindow(HWND hwnd);

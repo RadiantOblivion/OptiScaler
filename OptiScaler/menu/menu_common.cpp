@@ -53,6 +53,7 @@ static std::string selectedUpscalerName = "";
 static Upscaler currentBackend = Upscaler::Reset;
 static std::string currentBackendName = "";
 static int refreshRate = 0;
+static ImVec2 lastPosition(-1000.0f, -1000.0f);
 
 static ImVec2 splashPosition(-1000.0f, -1000.0f);
 static ImVec2 splashSize(0.0f, 0.0f);
@@ -112,7 +113,7 @@ static std::vector<std::string> splashText = { "Cope smarter, not harder",
                                                "Upscaling for the masses, not the classes",
                                                "Generating discord since 2023",
                                                "Enabling DLSS since 2023",
-                                               "[Reducted] never looked better",
+                                               "[REDACTED] never looked better",
                                                "Free and always free",
                                                "Getting unshackled from green chains in progress...",
                                                "Who's Nukem anyway?",
@@ -1037,8 +1038,11 @@ void MenuCommon::RenderUpscalerCombo(const API api, Upscaler currentUpscaler, co
         for (auto opt : options)
         {
             // Check if GPU is capable of a given backend
-            bool isCapable = (opt == Upscaler::DLSS) ? primaryGpu.dlssCapable : true;
-            if (!isCapable)
+            if (opt == Upscaler::DLSS && !primaryGpu.dlssCapable)
+                continue;
+
+            // Not all Intel GPUs support native DX11 XeSS but don't think we have a good way to check exactly
+            if (opt == Upscaler::XeSS && api == API::DX11 && primaryGpu.vendorId != VendorId::Intel)
                 continue;
 
             bool isSelected = (currentUpscaler == opt);
@@ -1243,12 +1247,19 @@ void MenuCommon::PopulateCombo(const std::string& name, TStorage& currentValue,
 
 static ImVec4 toneMapColor(const ImVec4& color)
 {
-    // Apply tone mapping (e.g., Reinhard tone mapping)
-    float luminance = 0.2126f * color.x + 0.7152f * color.y + 0.0722f * color.z;
-    float mappedLuminance = luminance / (1.0f + luminance);
-    float scale = mappedLuminance / luminance;
+    if (State::Instance().isHdrActive ||
+        (!Config::Instance()->OverlayMenu.value_or_default() && State::Instance().currentFeature != nullptr &&
+         State::Instance().currentFeature->IsHdr()))
+    {
+        // Apply tone mapping (e.g., Reinhard tone mapping)
+        float luminance = 0.2126f * color.x + 0.7152f * color.y + 0.0722f * color.z;
+        float mappedLuminance = luminance / (1.0f + luminance);
+        float scale = mappedLuminance / luminance;
 
-    return ImVec4(color.x * scale, color.y * scale, color.z * scale, color.w);
+        return ImVec4(color.x * scale, color.y * scale, color.z * scale, color.w);
+    }
+
+    return color;
 }
 
 static void MenuHdrCheck(ImGuiIO io)
@@ -1348,6 +1359,243 @@ inline static std::string GetDispatchString(UINT source)
     }
 }
 
+static void ApplyThemeStyle()
+{
+    ImGuiStyle& style = ImGui::GetStyle();
+
+    auto conf = Config::Instance();
+    bool lightTheme = conf->LightTheme.value_or_default();
+
+    style.WindowRounding = 2.0f;
+    style.ChildRounding = 0.0f;
+    style.FrameRounding = 1.0f;
+    style.PopupRounding = 2.0f;
+    style.ScrollbarRounding = 1.0f;
+    style.GrabRounding = 1.0f;
+    style.TabRounding = 1.0f;
+
+    style.WindowBorderSize = 1.0f;
+    style.PopupBorderSize = 1.0f;
+
+    style.FrameBorderSize = lightTheme ? 1.0f : 0.0f;
+    style.TabBorderSize = lightTheme ? 1.0f : 0.0f;
+
+    style.ScrollbarSize = 10.0f;
+    style.GrabMinSize = 10.0f;
+
+    ImVec4 accent = ImVec4(conf->MenuAccentColorR.value_or_default(), conf->MenuAccentColorG.value_or_default(),
+                           conf->MenuAccentColorB.value_or_default(), 1.0f);
+
+    auto Clamp01 = [](float v) { return std::max(0.0f, std::min(v, 1.0f)); };
+
+    accent.x = Clamp01(accent.x);
+    accent.y = Clamp01(accent.y);
+    accent.z = Clamp01(accent.z);
+    accent.w = 1.0f;
+
+    float luminance = accent.x * 0.2126f + accent.y * 0.7152f + accent.z * 0.0722f;
+
+    // Keep dark-theme accents from becoming too dark.
+    if (!lightTheme && luminance < 0.25f)
+    {
+        accent.x = std::min(accent.x * 1.8f + 0.08f, 1.0f);
+        accent.y = std::min(accent.y * 1.8f + 0.08f, 1.0f);
+        accent.z = std::min(accent.z * 1.8f + 0.08f, 1.0f);
+    }
+
+    // Keep light-theme accents from becoming too light.
+    if (lightTheme && luminance > 0.72f)
+    {
+        accent.x *= 0.55f;
+        accent.y *= 0.55f;
+        accent.z *= 0.55f;
+    }
+
+    auto Mix = [](const ImVec4& a, const ImVec4& b, float t, float alpha = 1.0f)
+    { return ImVec4(a.x + (b.x - a.x) * t, a.y + (b.y - a.y) * t, a.z + (b.z - a.z) * t, alpha); };
+
+    auto AccentBackground = [&](const ImVec4& base, float strength = 1.0f, float alpha = 1.0f)
+    {
+        float t = lightTheme ? (0.025f * strength) : (0.040f * strength);
+        return Mix(base, accent, t, alpha);
+    };
+
+    // Background palette switches based on theme
+    const ImVec4 bgDark = lightTheme ? ImVec4(0.80f, 0.82f, 0.86f, 1.00f) : ImVec4(0.09f, 0.10f, 0.13f, 1.00f);
+    const ImVec4 bgMid = lightTheme ? ImVec4(0.89f, 0.91f, 0.95f, 1.00f) : ImVec4(0.11f, 0.13f, 0.16f, 1.00f);
+    const ImVec4 bgLight = lightTheme ? ImVec4(0.96f, 0.97f, 0.99f, 1.00f) : ImVec4(0.13f, 0.15f, 0.21f, 1.00f);
+    const ImVec4 bgTitle = lightTheme ? ImVec4(0.70f, 0.75f, 0.83f, 1.00f) : ImVec4(0.07f, 0.08f, 0.10f, 1.00f);
+    const ImVec4 textPrimary = lightTheme ? ImVec4(0.05f, 0.06f, 0.08f, 1.00f) : ImVec4(0.90f, 0.93f, 0.95f, 1.00f);
+    const ImVec4 textDim = lightTheme ? ImVec4(0.22f, 0.25f, 0.31f, 1.00f) : ImVec4(0.54f, 0.58f, 0.62f, 1.00f);
+    const ImVec4 borderCol = lightTheme ? ImVec4(0.35f, 0.40f, 0.50f, 1.00f) : ImVec4(0.18f, 0.22f, 0.30f, 1.00f);
+    const ImVec4 dimBg = lightTheme ? ImVec4(0.30f, 0.33f, 0.38f, 0.20f) : ImVec4(0.09f, 0.10f, 0.13f, 0.20f);
+    const ImVec4 modalDimBg = lightTheme ? ImVec4(0.22f, 0.24f, 0.28f, 0.55f) : ImVec4(0.04f, 0.04f, 0.07f, 0.55f);
+
+    auto AccentSoft = [&](float alpha = 1.0f)
+    { return lightTheme ? Mix(bgLight, accent, 0.24f, alpha) : Mix(bgDark, accent, 0.32f, alpha); };
+
+    auto AccentMed = [&](float alpha = 1.0f)
+    { return lightTheme ? Mix(bgLight, accent, 0.42f, alpha) : Mix(bgDark, accent, 0.55f, alpha); };
+
+    auto AccentStrong = [&](float alpha = 1.0f) { return ImVec4(accent.x, accent.y, accent.z, alpha); };
+
+    auto AccentBright = [&](float alpha = 1.0f)
+    {
+        return lightTheme ? Mix(accent, ImVec4(1.00f, 1.00f, 1.00f, 1.00f), 0.10f, alpha)
+                          : Mix(accent, ImVec4(1.00f, 1.00f, 1.00f, 1.00f), 0.28f, alpha);
+    };
+
+    auto SurfaceHover = [&](float alpha = 1.0f)
+    { return lightTheme ? Mix(bgLight, accent, 0.12f, alpha) : Mix(bgLight, accent, 0.18f, alpha); };
+
+    auto SurfaceActive = [&](float alpha = 1.0f)
+    { return lightTheme ? Mix(bgLight, accent, 0.20f, alpha) : Mix(bgLight, accent, 0.28f, alpha); };
+
+    auto TitleActive = [&](float alpha = 1.0f)
+    { return lightTheme ? Mix(bgTitle, accent, 0.18f, alpha) : Mix(bgTitle, accent, 0.16f, alpha); };
+
+    auto PlotAccent = [&](float alpha = 1.0f)
+    {
+        if (lightTheme)
+        {
+            ImVec4 dark = Mix(accent, ImVec4(0.00f, 0.00f, 0.00f, 1.00f), 0.25f, alpha);
+
+            return ImVec4(std::min(dark.x, 0.55f), std::min(dark.y, 0.60f), std::min(dark.z, 0.70f), alpha);
+        }
+
+        ImVec4 bright = Mix(accent, ImVec4(1.00f, 1.00f, 1.00f, 1.00f), 0.45f, alpha);
+
+        return ImVec4(std::max(bright.x, 0.45f), std::max(bright.y, 0.55f), std::max(bright.z, 0.70f), alpha);
+    };
+
+    auto PlotAccentHovered = [&](float alpha = 1.0f)
+    {
+        if (lightTheme)
+        {
+            return Mix(PlotAccent(alpha), ImVec4(0.00f, 0.00f, 0.00f, 1.00f), 0.15f, alpha);
+        }
+
+        return Mix(PlotAccent(alpha), ImVec4(1.00f, 1.00f, 1.00f, 1.00f), 0.25f, alpha);
+    };
+
+    auto AccentReadable = [&](float alpha = 1.0f)
+    {
+        float lum = accent.x * 0.2126f + accent.y * 0.7152f + accent.z * 0.0722f;
+
+        if (lightTheme)
+        {
+            if (lum > 0.72f)
+            {
+                return Mix(accent, ImVec4(0.0f, 0.0f, 0.0f, 1.0f), 0.35f, alpha);
+            }
+
+            return ImVec4(accent.x, accent.y, accent.z, alpha);
+        }
+
+        if (lum < 0.25f)
+        {
+            return Mix(accent, ImVec4(1.0f, 1.0f, 1.0f, 1.0f), 0.25f, alpha);
+        }
+
+        return ImVec4(accent.x, accent.y, accent.z, alpha);
+    };
+
+    ImVec4* c = ImGui::GetStyle().Colors;
+
+    // Text
+    c[ImGuiCol_Text] = textPrimary;
+    c[ImGuiCol_TextDisabled] = textDim;
+    c[ImGuiCol_TextLink] = AccentReadable();
+
+    // Backgrounds
+    c[ImGuiCol_WindowBg] = AccentBackground(bgDark, 1.00f);
+    c[ImGuiCol_ChildBg] = AccentBackground(bgMid, 1.10f);
+    c[ImGuiCol_PopupBg] = lightTheme ? AccentBackground(bgLight, 0.90f)
+                                     : AccentBackground(ImVec4(0.09f, 0.10f, 0.13f, 0.97f), 0.90f, 0.97f);
+    c[ImGuiCol_MenuBarBg] = AccentBackground(bgDark, 0.85f);
+    c[ImGuiCol_DockingEmptyBg] = AccentBackground(bgDark, 0.75f);
+
+    // Borders
+    c[ImGuiCol_Border] = borderCol;
+    c[ImGuiCol_BorderShadow] = ImVec4(0.00f, 0.00f, 0.00f, 0.00f);
+
+    // Frames
+    c[ImGuiCol_FrameBg] = AccentBackground(bgLight, 0.65f);
+    c[ImGuiCol_FrameBgHovered] = SurfaceHover();
+    c[ImGuiCol_FrameBgActive] = SurfaceActive();
+
+    // Titles
+    c[ImGuiCol_TitleBg] = bgTitle;
+    c[ImGuiCol_TitleBgActive] = TitleActive();
+    c[ImGuiCol_TitleBgCollapsed] = ImVec4(bgTitle.x, bgTitle.y, bgTitle.z, 0.75f);
+
+    // Scrollbars
+    c[ImGuiCol_ScrollbarBg] = bgDark;
+    c[ImGuiCol_ScrollbarGrab] = AccentSoft();
+    c[ImGuiCol_ScrollbarGrabHovered] = AccentMed();
+    c[ImGuiCol_ScrollbarGrabActive] = AccentStrong();
+
+    // Controls
+    c[ImGuiCol_CheckMark] = AccentReadable();
+    c[ImGuiCol_SliderGrab] = AccentMed();
+    c[ImGuiCol_SliderGrabActive] = AccentReadable();
+    c[ImGuiCol_InputTextCursor] = AccentReadable();
+
+    // Buttons
+    c[ImGuiCol_Button] = AccentSoft();
+    c[ImGuiCol_ButtonHovered] = AccentMed();
+    c[ImGuiCol_ButtonActive] = AccentStrong();
+
+    // Headers
+    c[ImGuiCol_Header] = AccentSoft(0.90f);
+    c[ImGuiCol_HeaderHovered] = AccentMed(0.95f);
+    c[ImGuiCol_HeaderActive] = AccentStrong();
+
+    // Separators
+    c[ImGuiCol_Separator] = borderCol;
+    c[ImGuiCol_SeparatorHovered] = AccentMed(0.85f);
+    c[ImGuiCol_SeparatorActive] = AccentStrong();
+
+    // Resize
+    c[ImGuiCol_ResizeGrip] = AccentSoft(0.30f);
+    c[ImGuiCol_ResizeGripHovered] = AccentStrong(0.70f);
+    c[ImGuiCol_ResizeGripActive] = AccentStrong(0.95f);
+
+    // Tabs
+    c[ImGuiCol_Tab] = AccentBackground(bgMid, 0.70f);
+    c[ImGuiCol_TabHovered] = AccentMed();
+    c[ImGuiCol_TabSelected] = AccentSoft();
+    c[ImGuiCol_TabSelectedOverline] = AccentStrong();
+    c[ImGuiCol_TabDimmed] = AccentBackground(bgDark, 0.60f);
+    c[ImGuiCol_TabDimmedSelected] = AccentSoft(0.75f);
+    c[ImGuiCol_TabDimmedSelectedOverline] = borderCol;
+
+    // Docking
+    c[ImGuiCol_DockingPreview] = AccentStrong(0.70f);
+
+    // Plots
+    c[ImGuiCol_PlotLines] = PlotAccent();
+    c[ImGuiCol_PlotLinesHovered] = PlotAccentHovered();
+    c[ImGuiCol_PlotHistogram] = PlotAccent(0.85f);
+    c[ImGuiCol_PlotHistogramHovered] = PlotAccentHovered();
+
+    // Tables
+    c[ImGuiCol_TableHeaderBg] = AccentBackground(bgMid, 0.80f);
+    c[ImGuiCol_TableBorderStrong] = borderCol;
+    c[ImGuiCol_TableBorderLight] = lightTheme ? ImVec4(0.68f, 0.72f, 0.80f, 1.00f) : AccentSoft();
+    c[ImGuiCol_TableRowBg] = ImVec4(0.00f, 0.00f, 0.00f, 0.00f);
+    c[ImGuiCol_TableRowBgAlt] = lightTheme ? ImVec4(0.00f, 0.00f, 0.00f, 0.045f) : ImVec4(1.00f, 1.00f, 1.00f, 0.03f);
+
+    // Misc
+    c[ImGuiCol_TreeLines] = borderCol;
+    c[ImGuiCol_TextSelectedBg] = AccentMed(0.38f);
+    c[ImGuiCol_DragDropTarget] = AccentStrong(0.90f);
+    c[ImGuiCol_NavCursor] = AccentReadable();
+    c[ImGuiCol_NavWindowingHighlight] = AccentStrong(0.70f);
+    c[ImGuiCol_NavWindowingDimBg] = dimBg;
+    c[ImGuiCol_ModalWindowDimBg] = modalDimBg;
+}
+
 static double lastTime = 0.0;
 static UINT64 uwpTargetFrame = 0;
 
@@ -1433,6 +1681,8 @@ bool MenuCommon::RenderMenu()
 
             if (_isVisible)
             {
+                ApplyThemeStyle();
+
                 refreshRate = Util::GetActiveRefreshRate(_handle);
 
                 auto optiPath = std::filesystem::path(Config::Instance()->MainDllPath.value());
@@ -1457,6 +1707,8 @@ bool MenuCommon::RenderMenu()
             }
             else
             {
+                ImGui::CloseCurrentPopup();
+
                 if (pfn_ClipCursor_hooked)
                     pfn_ClipCursor(&_cursorLimit);
 
@@ -1475,7 +1727,7 @@ bool MenuCommon::RenderMenu()
     bool frameTimesCalculated = false;
     constexpr double splashTime = 7000.0;
     constexpr double fadeTime = 1000.0;
-    constexpr int updateNoticeTime = 60000;
+    constexpr int updateNoticeTime = 10000;
     static std::string splashMessage;
 
     // Version check
@@ -1586,6 +1838,8 @@ bool MenuCommon::RenderMenu()
 
             ImGui::PushStyleVar(ImGuiStyleVar_Alpha, windowAlpha);
             ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(12, 8));
+            ImGui::PushStyleColor(ImGuiCol_WindowBg, ImVec4(0.0f, 0.0f, 0.0f, 1.0f));
+            ImGui::PushStyleColor(ImGuiCol_Text, toneMapColor(ImVec4(1.0f, 1.0f, 1.0f, 1.0f)));
             ImGui::PushStyleColor(ImGuiCol_Border, IM_COL32(0, 0, 0, 0));
             ImGui::PushStyleColor(ImGuiCol_FrameBg, IM_COL32(0, 0, 0, 0));
 
@@ -1620,7 +1874,7 @@ bool MenuCommon::RenderMenu()
                 splashPosition.y = io.DisplaySize.y - splashSize.y;
             }
 
-            ImGui::PopStyleColor(2);
+            ImGui::PopStyleColor(4);
             ImGui::PopStyleVar(2);
         }
     }
@@ -1708,6 +1962,8 @@ bool MenuCommon::RenderMenu()
         ImGui::SetNextWindowPos(overlayPosition, ImGuiCond_Always);
 
         // Set overlay window properties
+        ImGui::PushStyleColor(ImGuiCol_WindowBg, ImVec4(0.0f, 0.0f, 0.0f, 1.0f));
+        ImGui::PushStyleColor(ImGuiCol_Text, toneMapColor(ImVec4(1.0f, 1.0f, 1.0f, 1.0f)));
         ImGui::PushStyleColor(ImGuiCol_Border, IM_COL32(0, 0, 0, 0));            // Transparent border
         ImGui::PushStyleColor(ImGuiCol_FrameBg, IM_COL32(0, 0, 0, 0));           // Transparent frame background
         ImGui::SetNextWindowBgAlpha(config->FpsOverlayAlpha.value_or_default()); // Transparent background
@@ -2012,9 +2268,9 @@ bool MenuCommon::RenderMenu()
                     drawTiming(TimingType::GpuRender, "GpuRender", ImVec4(0.569f, 0.117f, 0.705f, 1.0f));
                 }
             }
-
-            ImGui::PopStyleColor(3); // Restore the style
         }
+
+        ImGui::PopStyleColor(5); // Restore the style
 
         // Get size for postioning
         overlaySize = ImGui::GetWindowSize();
@@ -2093,18 +2349,8 @@ bool MenuCommon::RenderMenu()
             style = ImGuiStyle();        // IMPORTANT: ScaleAllSizes will change the original size,
                                          // so we should reset all style config
 
-            style.WindowBorderSize = 1.0f;
-            style.ChildBorderSize = 1.0f;
-            style.PopupBorderSize = 1.0f;
-            style.FrameBorderSize = 1.0f;
-            style.TabBorderSize = 1.0f;
-            style.WindowRounding = 0.0f;
-            style.ChildRounding = 0.0f;
-            style.PopupRounding = 0.0f;
-            style.FrameRounding = 0.0f;
-            style.ScrollbarRounding = 0.0f;
-            style.GrabRounding = 0.0f;
-            style.TabRounding = 0.0f;
+            ApplyThemeStyle();
+
             style.ScaleAllSizes(menuResScale);
             style.MouseCursorScale = 1.0f;
             CopyMemory(style.Colors, styleold.Colors, sizeof(style.Colors)); // Restore colors
@@ -2173,9 +2419,9 @@ bool MenuCommon::RenderMenu()
                 ImGui::Spacing();
 
                 if (config->UseHQFont.value_or_default())
-                    ImGui::PushFontSize(std::round(fontSize * menuResScale * 3.0f));
+                    ImGui::PushFontSize(std::round(fontSize * menuResScale * 2.5f));
                 else
-                    ImGui::SetWindowFontScale(menuResScale * 3.0f);
+                    ImGui::SetWindowFontScale(menuResScale * 2.5f);
 
                 if (state.nvngxExists || state.nvngxReplacement.has_value() ||
                     (state.libxessExists || XeSSProxy::Module() != nullptr))
@@ -2197,9 +2443,8 @@ bool MenuCommon::RenderMenu()
 
                     std::string joinedUpscalers(joined.begin(), joined.end());
 
-                    ImGui::Text("Please select %s as upscaler\nfrom game options and load into a save (if not "
-                                "showing)\nto enable "
-                                "upscaler settings.\n",
+                    ImGui::Text("Please select %s as upscaler from game\noptions and load a save game "
+                                "to enable Opti settings.\nUpscalers don't always work in menus.",
                                 joinedUpscalers.c_str());
 
                     if (config->UseHQFont.value_or_default())
@@ -3786,6 +4031,7 @@ bool MenuCommon::RenderMenu()
                                     if (ImGui::Selectable(intModes[i], (currentSet == i)))
                                     {
                                         LOG_DEBUG("XeFG Interpolation Count set to: {}", i + 1);
+                                        state.FGchanged = true;
                                         config->FGXeFGInterpolationCount = i + 1;
                                     }
                                 }
@@ -4808,11 +5054,11 @@ bool MenuCommon::RenderMenu()
 
                         ImGui::BeginDisabled(!config->RcasEnabled.value_or(rcasEnabled));
 
-                        int useDA = Config::Instance()->UseDepthAwareSharpen.value_or_default();
+                        auto sharpnessShader = (int32_t) Config::Instance()->SharpnessShader.value_or_default();
 
-                        if (ImGui::RadioButton("Use RCAS", &useDA, false))
+                        if (ImGui::RadioButton("RCAS", &sharpnessShader, (int32_t) SharpenShader::RCAS))
                         {
-                            Config::Instance()->UseDepthAwareSharpen = false;
+                            Config::Instance()->SharpnessShader = SharpenShader::RCAS;
                         }
 
                         ShowHelpMarker("Use AMD's RCAS\n"
@@ -4821,12 +5067,28 @@ bool MenuCommon::RenderMenu()
 
                         ImGui::SameLine(0.0f, 6.0f);
 
-                        if (ImGui::RadioButton("Use Depth Aware", &useDA, true))
+                        if (ImGui::RadioButton("Depth Aware (RCAS)", &sharpnessShader,
+                                               (int32_t) SharpenShader::DepthAware))
                         {
-                            Config::Instance()->UseDepthAwareSharpen = true;
+                            Config::Instance()->SharpnessShader = SharpenShader::DepthAware;
                         }
 
-                        ShowHelpMarker("Use Depth Aware Sharpening\n"
+                        ShowHelpMarker("Use Depth Aware Sharpening (RCAS)\n"
+                                       "Smarter sharpening with less artifacts,\n"
+                                       "but also heavier\n\n"
+                                       "The farther away is the object, the more\n"
+                                       "sharpening is applied");
+
+                        ImGui::SameLine(0.0f, 6.0f);
+
+                        if (ImGui::RadioButton("Depth Aware (LC)", &sharpnessShader,
+                                               (int32_t) SharpenShader::LocalContrastDepthAware))
+                        {
+                            Config::Instance()->SharpnessShader = SharpenShader::LocalContrastDepthAware;
+                        }
+
+                        ShowHelpMarker("Use Depth Aware Sharpening (LC)\n"
+                                       "Local contrast based sharpening\n"
                                        "Smarter sharpening with less artifacts,\n"
                                        "but also heavier\n\n"
                                        "The farther away is the object, the more\n"
@@ -4839,7 +5101,7 @@ bool MenuCommon::RenderMenu()
                             config->MotionSharpnessEnabled = overrideMotionSharpness;
                         ShowHelpMarker("Enables sharpness adjustments according to the motion");
 
-                        if (Config::Instance()->UseDepthAwareSharpen.value_or_default())
+                        if (Config::Instance()->SharpnessShader.value_or_default() != SharpenShader::RCAS)
                         {
                             if (bool overrideMSDebug = config->MotionSharpnessDebug.value_or_default();
                                 ImGui::Checkbox("DA + MAS Debug", &overrideMSDebug))
@@ -4954,7 +5216,7 @@ bool MenuCommon::RenderMenu()
 
                             ImGui::BeginDisabled(!config->MotionSharpnessEnabled.value_or_default());
 
-                            if (!Config::Instance()->UseDepthAwareSharpen.value_or_default())
+                            if (Config::Instance()->SharpnessShader.value_or_default() == SharpenShader::RCAS)
                             {
                                 if (bool overrideMSDebug = config->MotionSharpnessDebug.value_or_default();
                                     ImGui::Checkbox("MAS Debug", &overrideMSDebug))
@@ -5485,6 +5747,261 @@ bool MenuCommon::RenderMenu()
                         }
 
                         ImGui::EndCombo();
+                    }
+                }
+
+                // THEME -----------------------------
+                ImGui::Spacing();
+                if (auto ch = ScopedCollapsingHeader("Menu Theme and Color"); ch.IsHeaderOpen())
+                {
+                    ScopedIndent indent {};
+                    ImGui::Spacing();
+
+                    bool lightTheme = config->LightTheme.value_or_default();
+
+                    const ImVec4 bgDark =
+                        lightTheme ? ImVec4(0.80f, 0.82f, 0.86f, 1.00f) : ImVec4(0.09f, 0.10f, 0.13f, 1.00f);
+                    const ImVec4 bgMid =
+                        lightTheme ? ImVec4(0.89f, 0.91f, 0.95f, 1.00f) : ImVec4(0.11f, 0.13f, 0.16f, 1.00f);
+                    const ImVec4 bgLight =
+                        lightTheme ? ImVec4(0.96f, 0.97f, 0.99f, 1.00f) : ImVec4(0.13f, 0.15f, 0.21f, 1.00f);
+
+                    auto Mix = [](const ImVec4& a, const ImVec4& b, float t, float alpha = 1.0f)
+                    { return ImVec4(a.x + (b.x - a.x) * t, a.y + (b.y - a.y) * t, a.z + (b.z - a.z) * t, alpha); };
+
+                    auto AccentSoft = [&](ImVec4 accent, float alpha = 1.0f)
+                    { return lightTheme ? Mix(bgLight, accent, 0.24f, alpha) : Mix(bgDark, accent, 0.32f, alpha); };
+
+                    auto AccentMed = [&](ImVec4 accent, float alpha = 1.0f)
+                    { return lightTheme ? Mix(bgLight, accent, 0.42f, alpha) : Mix(bgDark, accent, 0.55f, alpha); };
+
+                    auto AccentStrong = [&](ImVec4 accent, float alpha = 1.0f)
+                    { return ImVec4(accent.x, accent.y, accent.z, alpha); };
+
+                    auto getAccentColor = [&](ImVec4 accent)
+                    {
+                        auto Clamp01 = [](float v) { return std::max(0.0f, std::min(v, 1.0f)); };
+
+                        accent.x = Clamp01(accent.x);
+                        accent.y = Clamp01(accent.y);
+                        accent.z = Clamp01(accent.z);
+                        accent.w = 1.0f;
+
+                        float luminance = accent.x * 0.2126f + accent.y * 0.7152f + accent.z * 0.0722f;
+
+                        // Keep dark-theme accents from becoming too dark.
+                        if (!lightTheme && luminance < 0.25f)
+                        {
+                            accent.x = std::min(accent.x * 1.8f + 0.08f, 1.0f);
+                            accent.y = std::min(accent.y * 1.8f + 0.08f, 1.0f);
+                            accent.z = std::min(accent.z * 1.8f + 0.08f, 1.0f);
+                        }
+
+                        // Keep light-theme accents from becoming too light.
+                        if (lightTheme && luminance > 0.72f)
+                        {
+                            accent.x *= 0.55f;
+                            accent.y *= 0.55f;
+                            accent.z *= 0.55f;
+                        }
+
+                        return accent;
+                    };
+
+                    if (ImGui::Checkbox("Light Theme", &lightTheme))
+                    {
+                        config->LightTheme = lightTheme;
+                        ApplyThemeStyle();
+                    }
+
+                    ImVec4 color = { 0.0f, 0.0f, 0.0f, 1.0f };
+
+                    color.x = 0.01f;
+                    color.y = 0.18f;
+                    color.z = 0.34f;
+                    color = getAccentColor(color);
+                    ImGui::PushStyleColor(ImGuiCol_Button, AccentSoft(color));
+                    ImGui::PushStyleColor(ImGuiCol_ButtonHovered, AccentMed(color));
+                    ImGui::PushStyleColor(ImGuiCol_ButtonActive, AccentStrong(color));
+
+                    if (ImGui::Button("Blue"))
+                    {
+                        ImGui::PopStyleColor(3);
+
+                        config->MenuAccentColorR = color.x;
+                        config->MenuAccentColorG = color.y;
+                        config->MenuAccentColorB = color.z;
+                        ApplyThemeStyle();
+                    }
+                    else
+                    {
+                        ImGui::PopStyleColor(3);
+                    }
+
+                    ImGui::SameLine(0.0f, 6.0f);
+
+                    color.x = 0.11f;
+                    color.y = 0.78f;
+                    color.z = 0.72f;
+                    color = getAccentColor(color);
+                    ImGui::PushStyleColor(ImGuiCol_Button, AccentSoft(color));
+                    ImGui::PushStyleColor(ImGuiCol_ButtonHovered, AccentMed(color));
+                    ImGui::PushStyleColor(ImGuiCol_ButtonActive, AccentStrong(color));
+
+                    if (ImGui::Button("Teal"))
+                    {
+                        ImGui::PopStyleColor(3);
+
+                        config->MenuAccentColorR = color.x;
+                        config->MenuAccentColorG = color.y;
+                        config->MenuAccentColorB = color.z;
+                        ApplyThemeStyle();
+                    }
+                    else
+                    {
+                        ImGui::PopStyleColor(3);
+                    }
+
+                    ImGui::SameLine(0.0f, 6.0f);
+
+                    color.x = 0.29f;
+                    color.y = 0.38f;
+                    color.z = 0.34f;
+                    color = getAccentColor(color);
+                    ImGui::PushStyleColor(ImGuiCol_Button, AccentSoft(color));
+                    ImGui::PushStyleColor(ImGuiCol_ButtonHovered, AccentMed(color));
+                    ImGui::PushStyleColor(ImGuiCol_ButtonActive, AccentStrong(color));
+
+                    if (ImGui::Button("Gray"))
+                    {
+                        ImGui::PopStyleColor(3);
+
+                        config->MenuAccentColorR = color.x;
+                        config->MenuAccentColorG = color.y;
+                        config->MenuAccentColorB = color.z;
+                        ApplyThemeStyle();
+                    }
+                    else
+                    {
+                        ImGui::PopStyleColor(3);
+                    }
+
+                    ImGui::SameLine(0.0f, 6.0f);
+
+                    color.x = 0.81f;
+                    color.y = 0.66f;
+                    color.z = 0.10f;
+                    color = getAccentColor(color);
+                    ImGui::PushStyleColor(ImGuiCol_Button, AccentSoft(color));
+                    ImGui::PushStyleColor(ImGuiCol_ButtonHovered, AccentMed(color));
+                    ImGui::PushStyleColor(ImGuiCol_ButtonActive, AccentStrong(color));
+
+                    if (ImGui::Button("Yellow"))
+                    {
+                        ImGui::PopStyleColor(3);
+
+                        config->MenuAccentColorR = color.x;
+                        config->MenuAccentColorG = color.y;
+                        config->MenuAccentColorB = color.z;
+                        ApplyThemeStyle();
+                    }
+                    else
+                    {
+                        ImGui::PopStyleColor(3);
+                    }
+
+                    ImGui::SameLine(0.0f, 6.0f);
+
+                    color.x = 0.25f;
+                    color.y = 0.52f;
+                    color.z = 0.16f;
+                    color = getAccentColor(color);
+                    ImGui::PushStyleColor(ImGuiCol_Button, AccentSoft(color));
+                    ImGui::PushStyleColor(ImGuiCol_ButtonHovered, AccentMed(color));
+                    ImGui::PushStyleColor(ImGuiCol_ButtonActive, AccentStrong(color));
+
+                    if (ImGui::Button("Green"))
+                    {
+                        ImGui::PopStyleColor(3);
+
+                        config->MenuAccentColorR = color.x;
+                        config->MenuAccentColorG = color.y;
+                        config->MenuAccentColorB = color.z;
+                        ApplyThemeStyle();
+                    }
+                    else
+                    {
+                        ImGui::PopStyleColor(3);
+                    }
+
+                    ImGui::SameLine(0.0f, 6.0f);
+
+                    color.x = 0.72f;
+                    color.y = 0.17f;
+                    color.z = 0.17f;
+                    color = getAccentColor(color);
+                    ImGui::PushStyleColor(ImGuiCol_Button, AccentSoft(color));
+                    ImGui::PushStyleColor(ImGuiCol_ButtonHovered, AccentMed(color));
+                    ImGui::PushStyleColor(ImGuiCol_ButtonActive, AccentStrong(color));
+
+                    if (ImGui::Button("Red"))
+                    {
+                        ImGui::PopStyleColor(3);
+
+                        config->MenuAccentColorR = color.x;
+                        config->MenuAccentColorG = color.y;
+                        config->MenuAccentColorB = color.z;
+                        ApplyThemeStyle();
+                    }
+                    else
+                    {
+                        ImGui::PopStyleColor(3);
+                    }
+
+                    ImGui::SameLine(0.0f, 6.0f);
+
+                    color.x = 1.00f;
+                    color.y = 0.63f;
+                    color.z = 0.29f;
+                    color = getAccentColor(color);
+                    ImGui::PushStyleColor(ImGuiCol_Button, AccentSoft(color));
+                    ImGui::PushStyleColor(ImGuiCol_ButtonHovered, AccentMed(color));
+                    ImGui::PushStyleColor(ImGuiCol_ButtonActive, AccentStrong(color));
+
+                    if (ImGui::Button("Orange"))
+                    {
+                        ImGui::PopStyleColor(3);
+
+                        config->MenuAccentColorR = color.x;
+                        config->MenuAccentColorG = color.y;
+                        config->MenuAccentColorB = color.z;
+                        ApplyThemeStyle();
+                    }
+                    else
+                    {
+                        ImGui::PopStyleColor(3);
+                    }
+
+                    float accentColor[3] = { config->MenuAccentColorR.value_or_default(),
+                                             config->MenuAccentColorG.value_or_default(),
+                                             config->MenuAccentColorB.value_or_default() };
+
+                    if (ImGui::ColorEdit3("Custom Accent Color", accentColor))
+                    {
+                        config->MenuAccentColorR = accentColor[0];
+                        config->MenuAccentColorG = accentColor[1];
+                        config->MenuAccentColorB = accentColor[2];
+                        ApplyThemeStyle();
+                    }
+
+                    ImGui::Spacing();
+
+                    if (ImGui::Button("Reset Accent Color"))
+                    {
+                        config->MenuAccentColorR.reset();
+                        config->MenuAccentColorG.reset();
+                        config->MenuAccentColorB.reset();
+                        ApplyThemeStyle();
                     }
                 }
 
@@ -6043,7 +6560,9 @@ bool MenuCommon::RenderMenu()
                     ImGui::Spacing();
                 }
 
-                if (winPos.x == 60.0 && winSize.x > 100)
+                if (lastPosition.x < -900.0f ||
+                    (lastPosition.x >= winPos.x - 1.0f && lastPosition.y >= winPos.y - 1.0f &&
+                     lastPosition.x <= winPos.x + 1.0f && lastPosition.y <= winPos.y + 1.0f))
                 {
                     float posX;
                     float posY;
@@ -6059,6 +6578,8 @@ bool MenuCommon::RenderMenu()
                     }
 
                     ImGui::SetWindowPos(ImVec2 { posX, posY });
+                    lastPosition.x = posX;
+                    lastPosition.y = posY;
                 }
 
                 ImGui::End();
@@ -6313,6 +6834,7 @@ void MenuCommon::Init(HWND InHwnd, bool isUWP)
     _handle = InHwnd;
     _isVisible = false;
     _isUWP = isUWP;
+    lastPosition = { -1000.0f, -1000.0f };
 
     LOG_DEBUG("Handle: {0:X}", (size_t) _handle);
 
@@ -6389,6 +6911,7 @@ void MenuCommon::Init(HWND InHwnd, bool isUWP)
     if (!pfn_SetCursorPos_hooked)
         AttachHooks();
 
+    ApplyThemeStyle();
     _isInited = true;
 }
 

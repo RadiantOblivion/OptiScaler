@@ -47,6 +47,7 @@
 #include <cwctype>
 #include <version_check.h>
 #include <misc/IdentifyGpu.h>
+#include <sha1/sha1.hpp>
 
 static std::vector<HMODULE> _asiHandles;
 static bool _passThruMode = false;
@@ -1267,6 +1268,20 @@ static void CheckQuirks(bool isNvidia)
                  productVersion.patch, productVersion.reserved);
     }
 
+#ifndef _DEBUG
+    // Hash is very slow on Debug builds + we don't need to check our own hashes
+    if (Config::Instance()->LogToFile.value_or_default() && Config::Instance()->LogLevel.value_or_default() == 0)
+    {
+        SHA1 checksum;
+        std::ifstream file(Util::ExePath(), std::ios::binary);
+
+        checksum.update(file);
+        const std::string hash = checksum.final();
+
+        LOG_TRACE("Game's Exe SHA1: {}", hash);
+    }
+#endif
+
     auto quirks = getQuirksForExe(exePathFilename);
 
     auto state = &State::Instance();
@@ -1621,11 +1636,34 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD ul_reason_for_call, LPVOID lpReserv
 
         // Main Opti DLL path
         if (!Config::Instance()->MainDllPath.has_value())
-            Config::Instance()->MainDllPath.set_volatile_value(Util::ExePath().parent_path() / L"OptiScaler");
+        {
+            Config::Instance()->MainDllPath.set_volatile_value(L"OptiScaler");
+        }
 
-        if (!Config::Instance()->PluginPath.has_value())
+        if (std::filesystem::path mainDllPath(Config::Instance()->MainDllPath.value()); mainDllPath.is_relative())
+        {
+            Config::Instance()->MainDllPath.set_volatile_value(Util::ExePath().parent_path() / mainDllPath);
+        }
+
+        // If path is invalid or doesn't exist, use the exe folder as main
+        if (!std::filesystem::exists(Config::Instance()->MainDllPath.value()) ||
+            !std::filesystem::is_directory(Config::Instance()->MainDllPath.value()))
+        {
+            Config::Instance()->MainDllPath.set_volatile_value(Util::ExePath().parent_path());
+        }
+
+        // Clean up path
+        Config::Instance()->MainDllPath.set_volatile_value(
+            std::filesystem::absolute(Config::Instance()->MainDllPath.value()));
+
+        // If path is not set or incorrect
+        if (!Config::Instance()->PluginPath.has_value() ||
+            (!std::filesystem::exists(Config::Instance()->PluginPath.value()) ||
+             !std::filesystem::is_directory(Config::Instance()->PluginPath.value())))
+        {
             Config::Instance()->PluginPath.set_volatile_value(
                 std::filesystem::path(Config::Instance()->MainDllPath.value()) / L"plugins");
+        }
 
         CheckForExcludedProcess();
 
@@ -1658,7 +1696,7 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD ul_reason_for_call, LPVOID lpReserv
         spdlog::warn("If you paid for these files, you've been scammed!");
         spdlog::warn("DO NOT USE IN MULTIPLAYER GAMES");
         spdlog::info("");
-        spdlog::info("LogLevel: {0}", Config::Instance()->LogLevel.value_or_default());
+        spdlog::info("LogLevel: {}", Config::Instance()->LogLevel.value_or_default());
 
         spdlog::info("");
         if (Util::GetRealWindowsVersion(winVer))

@@ -8,6 +8,26 @@
 
 #include <magic_enum.hpp>
 
+#ifndef FFX_API_CREATE_CONTEXT_DESC_TYPE_FRAMEGENERATION_VERSION
+#define FFX_API_CREATE_CONTEXT_DESC_TYPE_FRAMEGENERATION_VERSION 0x4000e
+struct ffxCreateContextDescFrameGenerationVersion
+{
+    ffxCreateContextDescHeader header;
+    uint32_t                   version;
+};
+#define FFX_FRAMEGENERATION_VERSION 0x1000000
+#endif
+
+#ifndef FFX_API_CREATE_CONTEXT_DESC_TYPE_FRAMEGENERATIONSWAPCHAIN_VERSION_DX12
+#define FFX_API_CREATE_CONTEXT_DESC_TYPE_FRAMEGENERATIONSWAPCHAIN_VERSION_DX12 0x2070008
+struct ffxCreateContextDescFrameGenerationSwapChainVersionDX12
+{
+    ffxCreateContextDescHeader header;
+    uint32_t                   version;
+};
+#define FFX_FRAMEGENERATION_SWAPCHAIN_DX12_VERSION 0xc01006
+#endif
+
 static D3D12_RESOURCE_STATES GetD3D12State(FfxApiResourceState state)
 {
     switch (state)

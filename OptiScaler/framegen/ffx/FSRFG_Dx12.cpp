@@ -9,7 +9,7 @@
 #include <magic_enum.hpp>
 
 #ifndef FFX_API_CREATE_CONTEXT_DESC_TYPE_FRAMEGENERATION_VERSION
-#define FFX_API_CREATE_CONTEXT_DESC_TYPE_FRAMEGENERATION_VERSION 0x4000e
+#define FFX_API_CREATE_CONTEXT_DESC_TYPE_FRAMEGENERATION_VERSION 0x2000e
 struct ffxCreateContextDescFrameGenerationVersion
 {
     ffxCreateContextDescHeader header;
@@ -19,7 +19,7 @@ struct ffxCreateContextDescFrameGenerationVersion
 #endif
 
 #ifndef FFX_API_CREATE_CONTEXT_DESC_TYPE_FRAMEGENERATIONSWAPCHAIN_VERSION_DX12
-#define FFX_API_CREATE_CONTEXT_DESC_TYPE_FRAMEGENERATIONSWAPCHAIN_VERSION_DX12 0x2070008
+#define FFX_API_CREATE_CONTEXT_DESC_TYPE_FRAMEGENERATIONSWAPCHAIN_VERSION_DX12 0x3000b
 struct ffxCreateContextDescFrameGenerationSwapChainVersionDX12
 {
     ffxCreateContextDescHeader header;

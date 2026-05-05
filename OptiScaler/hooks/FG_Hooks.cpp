@@ -25,6 +25,13 @@
 
 #define XEFG_RESOURCE_REF_LIMIT 1
 
+// ---------------------------------------------------------------------------
+// Static storage for the last FG swapchain description.
+// Used to avoid recreating the FG swapchain when the description hasn't changed.
+// ---------------------------------------------------------------------------
+static DXGI_SWAP_CHAIN_DESC lastFGSwapChainDesc = {0};
+static bool hasLastFGSwapChainDesc = false;
+
 inline static ID3D12Fence* resizeFence = nullptr;
 inline static UINT64 resizeFenceValue = 0;
 inline static HANDLE resizeFenceEvent = nullptr;
@@ -146,6 +153,43 @@ HRESULT FGHooks::CreateSwapChain(IDXGIFactory* pFactory, IUnknown* pDevice, DXGI
         // without releasing old one, be sure gpu is in idle state
         if (State::Instance().currentFGSwapchain != nullptr)
         {
+            // Check if the new swapchain description matches the last one we used
+            bool descMatches = true;
+            if (hasLastFGSwapChainDesc)
+            {
+                // Compare the relevant fields of pDesc and lastFGSwapChainDesc
+                if (pDesc->Width != lastFGSwapChainDesc.Width ||
+                    pDesc->Height != lastFGSwapChainDesc.Height ||
+                    pDesc->Format != lastFGSwapChainDesc.Format ||
+                    pDesc->Stereo != lastFGSwapChainDesc.Stereo ||
+                    pDesc->SampleDesc.Count != lastFGSwapChainDesc.SampleDesc.Count ||
+                    pDesc->SampleDesc.Quality != lastFGSwapChainDesc.SampleDesc.Quality ||
+                    pDesc->BufferUsage != lastFGSwapChainDesc.BufferUsage ||
+                    pDesc->BufferCount != lastFGSwapChainDesc.BufferCount ||
+                    pDesc->Scaling != lastFGSwapChainDesc.Scaling ||
+                    pDesc->SwapEffect != lastFGSwapChainDesc.SwapEffect ||
+                    pDesc->AlphaMode != lastFGSwapChainDesc.AlphaMode ||
+                    pDesc->Flags != lastFGSwapChainDesc.Flags)
+                {
+                    descMatches = false;
+                }
+            }
+            else
+            {
+                descMatches = false;
+            }
+
+            if (descMatches)
+            {
+                // If the description matches, we can reuse the existing swapchain.
+                // We just need to make sure the swapchain is still valid and return S_OK.
+                // However, note that the caller expects a swapchain in ppSwapChain.
+                // We will return the existing swapchain and add a reference.
+                *ppSwapChain = State::Instance().currentFGSwapchain;
+                (*ppSwapChain)->AddRef();
+                return S_OK;
+            }
+
             LOG_WARN("Looks like game is creating new swapchain, without releasing old one!");
 
             if (State::Instance().currentCommandQueue != nullptr && resizeFence != nullptr &&

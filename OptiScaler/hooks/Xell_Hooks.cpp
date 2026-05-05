@@ -82,10 +82,10 @@ bool XellHooks::update()
 
     float fpsLimit = Config::Instance()->FramerateLimit.value_or_default();
 
-    if (fpsLimit < 0.0f)
-        fpsLimit = 0.0f;
-
-    currentParams.minimumIntervalUs = static_cast<uint32_t>(std::round(1'000'000 / fpsLimit));
+    if (fpsLimit <= 0.0f)
+        currentParams.minimumIntervalUs = 0;
+    else
+        currentParams.minimumIntervalUs = static_cast<uint32_t>(std::round(1'000'000 / fpsLimit));
 
     return o_xellSetSleepMode(gamesContext, &currentParams) == XELL_RESULT_SUCCESS;
 }

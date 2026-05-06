@@ -915,16 +915,9 @@ sl::Result StreamlineHooks::hkslDLSSGGetState(const sl::ViewportHandle& viewport
 
         if (originalStructVersion >= 3)
         {
-            if (State::Instance().activeFgOutput == FGOutput::DLSSG || State::Instance().activeFgOutput == FGOutput::DLSSGWithNvngx)
-            {
-                state.inputsProcessingCompletionFence = nullptr;
-                state.lastPresentInputsProcessingCompletionFenceValue = 0;
-            }
-            else
-            {
-                state.inputsProcessingCompletionFence = newState.inputsProcessingCompletionFence;
-                state.lastPresentInputsProcessingCompletionFenceValue = newState.lastPresentInputsProcessingCompletionFenceValue;
-            }
+            // Always null out the fence because OptiScaler handles FG itself and doesn't signal this fence
+            state.inputsProcessingCompletionFence = nullptr;
+            state.lastPresentInputsProcessingCompletionFenceValue = 0;
         }
 
         State::Instance().dlssgGameDMFGSupported = newState.bIsDynamicMFGSupported == sl::eTrue;
@@ -934,11 +927,9 @@ sl::Result StreamlineHooks::hkslDLSSGGetState(const sl::ViewportHandle& viewport
         result = o_slDLSSGGetState(viewport, state, options);
         State::Instance().dlssgGameDMFGSupported = state.bIsDynamicMFGSupported == sl::eTrue;
 
-        if (State::Instance().activeFgOutput == FGOutput::DLSSG || State::Instance().activeFgOutput == FGOutput::DLSSGWithNvngx)
-        {
-            state.inputsProcessingCompletionFence = nullptr;
-            state.lastPresentInputsProcessingCompletionFenceValue = 0;
-        }
+        // Always null out the fence because OptiScaler handles FG itself and doesn't signal this fence
+        state.inputsProcessingCompletionFence = nullptr;
+        state.lastPresentInputsProcessingCompletionFenceValue = 0;
     }
 
     if (!State::Instance().dlssgGameDMFGSupported)

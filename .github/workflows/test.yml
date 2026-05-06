@@ -33,11 +33,6 @@ jobs:
       with:
         fetch-depth: 0        
         submodules: 'true'
-
-    - name: Apply Submodule Patches
-      working-directory: ${{ github.workspace }}/external/FidelityFX-SDK
-      run: git apply ../../patches/fidelityfx-sdk.patch
-        
         
     - name: Extract Version
       id: get_version

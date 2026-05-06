@@ -3,6 +3,7 @@
 #include <detours/detours.h>
 #include <magic_enum.hpp>
 #include <proxies/XeLL_Proxy.h>
+#include <State.h>
 
 #define HOOK(name)                                                                                                     \
     if (o_##name)                                                                                                      \
@@ -115,7 +116,12 @@ xell_result_t XellHooks::hkxellSleep(xell_context_handle_t context, uint32_t fra
 {
     if (shouldBlock(context))
         return XELL_RESULT_SUCCESS;
-    // spdlog::info("xellSleep: {}", frame_id);
+
+    // XeLL Sleep blocks for ~10s under Wine/Proton due to timing primitive incompatibility.
+    // Skip it on Linux — the game's own vsync handles frame pacing.
+    if (State::Instance().isRunningOnLinux)
+        return XELL_RESULT_SUCCESS;
+
     return o_xellSleep(context, frame_id);
 }
 xell_result_t XellHooks::hkxellAddMarkerData(xell_context_handle_t context, uint32_t frame_id,

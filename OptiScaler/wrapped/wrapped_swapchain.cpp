@@ -827,6 +827,18 @@ HRESULT STDMETHODCALLTYPE WrappedIDXGISwapChain4::GetMaximumFrameLatency(UINT* p
 
 HANDLE STDMETHODCALLTYPE WrappedIDXGISwapChain4::GetFrameLatencyWaitableObject(void)
 {
+    if (State::Instance().isRunningOnLinux && State::Instance().currentRealSwapchain != nullptr)
+    {
+        IDXGISwapChain2* real2 = nullptr;
+        if (State::Instance().currentRealSwapchain->QueryInterface(IID_PPV_ARGS(&real2)) == S_OK)
+        {
+            auto handle = real2->GetFrameLatencyWaitableObject();
+            real2->Release();
+            LOG_DEBUG("Returning real swapchain waitable object on Linux");
+            return handle;
+        }
+    }
+
     return _real2->GetFrameLatencyWaitableObject();
 }
 

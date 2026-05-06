@@ -894,6 +894,12 @@ sl::Result StreamlineHooks::hkslDLSSGGetState(const sl::ViewportHandle& viewport
 {
     sl::Result result {};
 
+    static ID3D12Fence* dummyFence = nullptr;
+    if (dummyFence == nullptr && State::Instance().currentD3D12Device != nullptr)
+    {
+        State::Instance().currentD3D12Device->CreateFence(1, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(&dummyFence));
+    }
+
     const auto originalStructVersion = state.structVersion;
     if (originalStructVersion < 4)
     {
@@ -915,8 +921,7 @@ sl::Result StreamlineHooks::hkslDLSSGGetState(const sl::ViewportHandle& viewport
 
         if (originalStructVersion >= 3)
         {
-            // Always null out the fence because OptiScaler handles FG itself and doesn't signal this fence
-            state.inputsProcessingCompletionFence = nullptr;
+            state.inputsProcessingCompletionFence = dummyFence;
             state.lastPresentInputsProcessingCompletionFenceValue = 0;
         }
 
@@ -927,8 +932,7 @@ sl::Result StreamlineHooks::hkslDLSSGGetState(const sl::ViewportHandle& viewport
         result = o_slDLSSGGetState(viewport, state, options);
         State::Instance().dlssgGameDMFGSupported = state.bIsDynamicMFGSupported == sl::eTrue;
 
-        // Always null out the fence because OptiScaler handles FG itself and doesn't signal this fence
-        state.inputsProcessingCompletionFence = nullptr;
+        state.inputsProcessingCompletionFence = dummyFence;
         state.lastPresentInputsProcessingCompletionFenceValue = 0;
     }
 

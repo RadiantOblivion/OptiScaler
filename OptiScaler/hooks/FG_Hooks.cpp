@@ -158,17 +158,17 @@ HRESULT FGHooks::CreateSwapChain(IDXGIFactory* pFactory, IUnknown* pDevice, DXGI
             if (hasLastFGSwapChainDesc)
             {
                 // Compare the relevant fields of pDesc and lastFGSwapChainDesc
-                if (pDesc->Width != lastFGSwapChainDesc.Width ||
-                    pDesc->Height != lastFGSwapChainDesc.Height ||
-                    pDesc->Format != lastFGSwapChainDesc.Format ||
-                    pDesc->Stereo != lastFGSwapChainDesc.Stereo ||
+                if (pDesc->BufferDesc.Width != lastFGSwapChainDesc.BufferDesc.Width ||
+                    pDesc->BufferDesc.Height != lastFGSwapChainDesc.BufferDesc.Height ||
+                    pDesc->BufferDesc.Format != lastFGSwapChainDesc.BufferDesc.Format ||
+                    pDesc->BufferDesc.RefreshRate.Numerator != lastFGSwapChainDesc.BufferDesc.RefreshRate.Numerator ||
+                    pDesc->BufferDesc.RefreshRate.Denominator != lastFGSwapChainDesc.BufferDesc.RefreshRate.Denominator ||
                     pDesc->SampleDesc.Count != lastFGSwapChainDesc.SampleDesc.Count ||
                     pDesc->SampleDesc.Quality != lastFGSwapChainDesc.SampleDesc.Quality ||
                     pDesc->BufferUsage != lastFGSwapChainDesc.BufferUsage ||
                     pDesc->BufferCount != lastFGSwapChainDesc.BufferCount ||
-                    pDesc->Scaling != lastFGSwapChainDesc.Scaling ||
+                    pDesc->Windowed != lastFGSwapChainDesc.Windowed ||
                     pDesc->SwapEffect != lastFGSwapChainDesc.SwapEffect ||
-                    pDesc->AlphaMode != lastFGSwapChainDesc.AlphaMode ||
                     pDesc->Flags != lastFGSwapChainDesc.Flags)
                 {
                     descMatches = false;

@@ -298,7 +298,11 @@ void IFGFeature::ResetCounters() { _targetFrame = _frameCount; }
 
 void IFGFeature::UpdateTarget()
 {
-    _targetFrame = _frameCount + 10;
+    if (State::Instance().isRunningOnLinux)
+        _targetFrame = 0;
+    else
+        _targetFrame = _frameCount + 10;
+        
     //_lastDispatchedFrame = 0;
     LOG_DEBUG("Current frame: {} target frame: {}", _frameCount, _targetFrame);
 }

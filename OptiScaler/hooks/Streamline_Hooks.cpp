@@ -1052,6 +1052,11 @@ sl::Result StreamlineHooks::hkslReflexSetOptions(const sl::ReflexOptions& option
 
 sl::Result StreamlineHooks::hkslReflexSleep(const sl::FrameToken& frame)
 {
+    // Streamline's Reflex Sleep blocks for ~10s under Wine/Proton due to timing primitive incompatibility.
+    // Skip it on Linux — the game's own vsync handles frame pacing.
+    if (State::Instance().isRunningOnLinux)
+        return sl::Result::eOk;
+
     // if (State::Instance().activeFgOutput == FGOutput::DLSSG && StreamlineProxy::IsD3D12Inited() &&
     //     Config::Instance()->FGDLSSGUseGamesReflexMarkers.value_or_default())
     //{

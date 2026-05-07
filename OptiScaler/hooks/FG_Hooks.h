@@ -25,6 +25,8 @@ class FGHooks
     using PFN_ResizeBuffers1 = rewrite_signature<decltype(&IDXGISwapChain3::ResizeBuffers1)>::type;
     using PFN_ResizeTarget = rewrite_signature<decltype(&IDXGISwapChain::ResizeTarget)>::type;
     using PFN_Release = rewrite_signature<decltype(&IUnknown::Release)>::type;
+    using PFN_GetFrameLatencyWaitableObject = rewrite_signature<decltype(&IDXGISwapChain2::GetFrameLatencyWaitableObject)>::type;
+    using PFN_SetMaximumFrameLatency = rewrite_signature<decltype(&IDXGISwapChain2::SetMaximumFrameLatency)>::type;
 
     inline static PFN_ResizeBuffers o_FGSCResizeBuffers = nullptr;
     inline static PFN_ResizeTarget o_FGSCResizeTarget = nullptr;
@@ -34,6 +36,8 @@ class FGHooks
     inline static PFN_GetFullscreenDesc o_FGSCGetFullscreenDesc = nullptr;
     inline static PFN_Present o_FGSCPresent = nullptr;
     inline static PFN_Present1 o_FGSCPresent1 = nullptr;
+    inline static PFN_GetFrameLatencyWaitableObject o_FGSCGetFrameLatencyWaitableObject = nullptr;
+    inline static PFN_SetMaximumFrameLatency o_FGSCSetMaximumFrameLatency = nullptr;
     inline static PFN_Release o_FGRelease = nullptr;
     inline static HWND _hwnd = nullptr;
     inline static bool _skipResize = false;
@@ -54,6 +58,8 @@ class FGHooks
     static HRESULT hkResizeBuffers1(IDXGISwapChain3* This, UINT BufferCount, UINT Width, UINT Height,
                                     DXGI_FORMAT Format, UINT SwapChainFlags, const UINT* pCreationNodeMask,
                                     IUnknown* const* ppPresentQueue);
+    static HANDLE STDMETHODCALLTYPE hkFGGetFrameLatencyWaitableObject(IDXGISwapChain2* This);
+    static HRESULT STDMETHODCALLTYPE hkFGSetMaximumFrameLatency(IDXGISwapChain2* This, UINT MaxLatency);
     static ULONG hkFGRelease(IUnknown* This);
 
     static HRESULT hkFGPresent(IDXGISwapChain* This, UINT SyncInterval, UINT Flags);
@@ -70,6 +76,8 @@ class FGHooks
     VALIDATE_MEMBER_HOOK(hkResizeBuffers, PFN_ResizeBuffers)
     VALIDATE_MEMBER_HOOK(hkResizeBuffers1, PFN_ResizeBuffers1)
     VALIDATE_MEMBER_HOOK(hkResizeTarget, PFN_ResizeTarget)
+    VALIDATE_MEMBER_HOOK(hkFGGetFrameLatencyWaitableObject, PFN_GetFrameLatencyWaitableObject)
+    VALIDATE_MEMBER_HOOK(hkFGSetMaximumFrameLatency, PFN_SetMaximumFrameLatency)
 
     // Don't understand why this is failing
     // VALIDATE_MEMBER_HOOK(hkFGRelease, PFN_Release)

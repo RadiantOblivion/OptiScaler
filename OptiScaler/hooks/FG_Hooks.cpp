@@ -385,6 +385,8 @@ void FGHooks::HookFGSwapchain(IDXGISwapChain* pSwapChain)
     o_FGSCResizeTarget = (PFN_ResizeTarget) pFactoryVTable[14];
     o_FGSCGetFullscreenDesc = (PFN_GetFullscreenDesc) pFactoryVTable[19];
     o_FGSCPresent1 = (PFN_Present1) pFactoryVTable[22];
+    o_FGSCSetMaximumFrameLatency = (PFN_SetMaximumFrameLatency) pFactoryVTable[31];
+    o_FGSCGetFrameLatencyWaitableObject = (PFN_GetFrameLatencyWaitableObject) pFactoryVTable[33];
     o_FGSCResizeBuffers1 = (PFN_ResizeBuffers1) pFactoryVTable[39];
 
     if (o_FGSCPresent != nullptr)
@@ -398,6 +400,8 @@ void FGHooks::HookFGSwapchain(IDXGISwapChain* pSwapChain)
         LOG_TRACE("FGSCResizeTarget: {:X}", (size_t) o_FGSCResizeTarget);
         LOG_TRACE("FGSCGetFullscreenDesc: {:X}", (size_t) o_FGSCGetFullscreenDesc);
         LOG_TRACE("FGSCPresent1: {:X}", (size_t) o_FGSCPresent1);
+        LOG_TRACE("FGSCSetMaximumFrameLatency: {:X}", (size_t) o_FGSCSetMaximumFrameLatency);
+        LOG_TRACE("FGSCGetFrameLatencyWaitableObject: {:X}", (size_t) o_FGSCGetFrameLatencyWaitableObject);
         LOG_TRACE("FGSCResizeBuffers1: {:X}", (size_t) o_FGSCResizeBuffers1);
 
         DetourTransactionBegin();
@@ -414,6 +418,12 @@ void FGHooks::HookFGSwapchain(IDXGISwapChain* pSwapChain)
 
         if (o_FGSCResizeBuffers1 != nullptr)
             DetourAttach(&(PVOID&) o_FGSCResizeBuffers1, hkResizeBuffers1);
+
+        if (State::Instance().isRunningOnLinux && o_FGSCSetMaximumFrameLatency != nullptr)
+            DetourAttach(&(PVOID&) o_FGSCSetMaximumFrameLatency, hkFGSetMaximumFrameLatency);
+
+        if (State::Instance().isRunningOnLinux && o_FGSCGetFrameLatencyWaitableObject != nullptr)
+            DetourAttach(&(PVOID&) o_FGSCGetFrameLatencyWaitableObject, hkFGGetFrameLatencyWaitableObject);
 
         if (State::Instance().activeFgOutput == FGOutput::XeFG)
         {
@@ -1351,4 +1361,42 @@ ULONG FGHooks::hkFGRelease(IUnknown* This)
     }
 
     return o_FGRelease(This);
+}
+
+HANDLE STDMETHODCALLTYPE FGHooks::hkFGGetFrameLatencyWaitableObject(IDXGISwapChain2* This)
+{
+    if (State::Instance().isRunningOnLinux && State::Instance().currentRealSwapchain != nullptr)
+    {
+        IDXGISwapChain2* real2 = nullptr;
+        if (State::Instance().currentRealSwapchain->QueryInterface(IID_PPV_ARGS(&real2)) == S_OK)
+        {
+            auto handle = real2->GetFrameLatencyWaitableObject();
+            real2->Release();
+            LOG_DEBUG("FGHooks returning real swapchain waitable object on Linux");
+            return handle;
+        }
+    }
+
+    if (o_FGSCGetFrameLatencyWaitableObject != nullptr)
+        return o_FGSCGetFrameLatencyWaitableObject(This);
+        
+    return nullptr;
+}
+
+HRESULT STDMETHODCALLTYPE FGHooks::hkFGSetMaximumFrameLatency(IDXGISwapChain2* This, UINT MaxLatency)
+{
+    if (State::Instance().isRunningOnLinux && State::Instance().currentRealSwapchain != nullptr)
+    {
+        IDXGISwapChain2* real2 = nullptr;
+        if (State::Instance().currentRealSwapchain->QueryInterface(IID_PPV_ARGS(&real2)) == S_OK)
+        {
+            real2->SetMaximumFrameLatency(MaxLatency);
+            real2->Release();
+        }
+    }
+
+    if (o_FGSCSetMaximumFrameLatency != nullptr)
+        return o_FGSCSetMaximumFrameLatency(This, MaxLatency);
+        
+    return S_OK;
 }

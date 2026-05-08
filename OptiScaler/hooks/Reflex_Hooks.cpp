@@ -45,27 +45,23 @@ NvAPI_Status ReflexHooks::hkNvAPI_D3D_Sleep(IUnknown* pDev)
     LOG_FUNC();
 #endif
 
-    // Streamline/NvAPI Reflex Sleep blocks for ~10s under Wine/Proton due to timing primitive incompatibility.
-    // Skip it on Linux — the game's own vsync handles frame pacing.
-    // EXCEPTION: When XeFG is active, we need to call the sleep to properly initialize XeLL sleep state.
-    if (State::Instance().isRunningOnLinux && State::Instance().activeFgOutput != FGOutput::XeFG)
+    // On Linux with XeFG active, call LowLatency::Sleep to properly trigger XeLL sleep.
+    // The real NvAPI_D3D_Sleep doesn't route to XeLL on Wine/Proton.
+    if (State::Instance().isRunningOnLinux && 
+        (State::Instance().activeFgOutput == FGOutput::XeFG || XellHooks::isXellContextBlocked()))
+    {
+        LOG_INFO("Calling LowLatency::Sleep for XeLL on Linux (activeFgOutput: {})", 
+                  magic_enum::enum_name(State::Instance().activeFgOutput));
+        _lastSleepDev = pDev;
+        LowLatency::Sleep();
+        return NvAPI_Status::NVAPI_OK;
+    }
+
+    // On Linux without XeFG, skip sleep to avoid ~10s delays under Wine/Proton.
+    if (State::Instance().isRunningOnLinux)
     {
         _lastSleepDev = pDev;
         return NvAPI_Status::NVAPI_OK;
-    }
-    // When XeFG is active on Linux, forward the call to the real NvAPI sleep implementation
-    // so that LowLatency::Sleep (and thus XeLL::sleep) is invoked.
-    if (State::Instance().isRunningOnLinux && State::Instance().activeFgOutput == FGOutput::XeFG)
-    {
-        _lastSleepDev = pDev;
-        return nvapi_calls::NvAPI_D3D_Sleep(pDev);
-    }
-
-    // Forward sleep to real NvAPI when XeFG is active, regardless of platform
-    if (State::Instance().activeFgOutput == FGOutput::XeFG)
-    {
-        _lastSleepDev = pDev;
-        return nvapi_calls::NvAPI_D3D_Sleep(pDev);
     }
 
     static bool skip = false;
@@ -96,9 +92,7 @@ NvAPI_Status ReflexHooks::hkNvAPI_D3D_Sleep(IUnknown* pDev)
         }
     }
 
-    if (State::Instance().activeFgOutput == FGOutput::XeFG)
-        return nvapi_calls::NvAPI_D3D_Sleep(pDev);
-
+    // For non-Linux or non-XeFG cases, use the original function
     _lastSleepDev = pDev;
     return o_NvAPI_D3D_Sleep(pDev);
 }

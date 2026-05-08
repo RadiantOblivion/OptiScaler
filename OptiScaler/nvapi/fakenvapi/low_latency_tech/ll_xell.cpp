@@ -18,13 +18,8 @@ void XeLL::xell_sleep(uint32_t frame_id)
 
 void XeLL::add_marker(uint32_t frame_id, xell_latency_marker_type_t marker)
 {
-    if (!sent_sleep_frame_ids[frame_id % 64])
-    {
-        LOG_DEBUG("Skipping reporting {} for XeLL because sleep wasn't sent for frame id: {}",
-                  magic_enum::enum_name(marker), frame_id);
-        return;
-    }
-
+    // Always report markers to XeLL - sleep is mainly for timing optimization
+    // and may not work reliably on Wine/Proton
     if (!inited_using_context || is_enabled())
         XeLLProxy::AddMarkerData()(XeLLProxy::Context(), frame_id, marker);
 }

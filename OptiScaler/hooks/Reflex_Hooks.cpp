@@ -61,6 +61,13 @@ NvAPI_Status ReflexHooks::hkNvAPI_D3D_Sleep(IUnknown* pDev)
         return nvapi_calls::NvAPI_D3D_Sleep(pDev);
     }
 
+    // Forward sleep to real NvAPI when XeFG is active, regardless of platform
+    if (State::Instance().activeFgOutput == FGOutput::XeFG)
+    {
+        _lastSleepDev = pDev;
+        return nvapi_calls::NvAPI_D3D_Sleep(pDev);
+    }
+
     static bool skip = false;
     if ((State::Instance().activeFgOutput == FGOutput::DLSSG ||
          State::Instance().activeFgOutput == FGOutput::DLSSGWithNvngx) &&

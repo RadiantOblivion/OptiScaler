@@ -53,7 +53,9 @@ NvAPI_Status ReflexHooks::hkNvAPI_D3D_Sleep(IUnknown* pDev)
         LOG_INFO("Calling LowLatency::Sleep for XeLL on Linux (activeFgOutput: {})", 
                   magic_enum::enum_name(State::Instance().activeFgOutput));
         _lastSleepDev = pDev;
+#if defined(_WIN32)
         LowLatency::Sleep();
+#endif
         return NvAPI_Status::NVAPI_OK;
     }
 

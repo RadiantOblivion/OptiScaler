@@ -47,7 +47,8 @@ NvAPI_Status ReflexHooks::hkNvAPI_D3D_Sleep(IUnknown* pDev)
 
     // Streamline/NvAPI Reflex Sleep blocks for ~10s under Wine/Proton due to timing primitive incompatibility.
     // Skip it on Linux — the game's own vsync handles frame pacing.
-    if (State::Instance().isRunningOnLinux)
+    // EXCEPTION: When XeFG is active, we need to call the sleep to properly initialize XeLL sleep state.
+    if (State::Instance().isRunningOnLinux && State::Instance().activeFgOutput != FGOutput::XeFG)
     {
         _lastSleepDev = pDev;
         return NvAPI_Status::NVAPI_OK;

@@ -53,6 +53,13 @@ NvAPI_Status ReflexHooks::hkNvAPI_D3D_Sleep(IUnknown* pDev)
         _lastSleepDev = pDev;
         return NvAPI_Status::NVAPI_OK;
     }
+    // When XeFG is active on Linux, forward the call to the real NvAPI sleep implementation
+    // so that LowLatency::Sleep (and thus XeLL::sleep) is invoked.
+    if (State::Instance().isRunningOnLinux && State::Instance().activeFgOutput == FGOutput::XeFG)
+    {
+        _lastSleepDev = pDev;
+        return nvapi_calls::NvAPI_D3D_Sleep(pDev);
+    }
 
     static bool skip = false;
     if ((State::Instance().activeFgOutput == FGOutput::DLSSG ||

@@ -710,10 +710,19 @@ void ReflexHooks::setFPSLimit(float fps)
         memcpy(&temp, &_lastSleepParams, sizeof(NV_SET_SLEEP_MODE_PARAMS));
         temp.minimumIntervalUs = _minimumIntervalUs;
 
-        if (State::Instance().activeFgOutput == FGOutput::XeFG)
-            nvapi_calls::NvAPI_D3D_SetSleepMode(_lastSleepDev, &temp);
+        // Avoid applying Sleep mode when running under Wine/Proton on Linux with XeFG active.
+        // XeLL/XeFG timing can cause extremely long sleeps on Linux.
+        if (State::Instance().isRunningOnLinux && State::Instance().activeFgOutput == FGOutput::XeFG)
+        {
+            LOG_INFO("Skipping D3D SetSleepMode on Linux with XeFG");
+        }
         else
-            o_NvAPI_D3D_SetSleepMode(_lastSleepDev, &temp);
+        {
+            if (State::Instance().activeFgOutput == FGOutput::XeFG)
+                nvapi_calls::NvAPI_D3D_SetSleepMode(_lastSleepDev, &temp);
+            else
+                o_NvAPI_D3D_SetSleepMode(_lastSleepDev, &temp);
+        }
     }
 
     if (_lastVkSleepDev != nullptr)
@@ -721,7 +730,16 @@ void ReflexHooks::setFPSLimit(float fps)
         NV_VULKAN_SET_SLEEP_MODE_PARAMS temp {};
         memcpy(&temp, &_lastVkSleepParams, sizeof(NV_VULKAN_SET_SLEEP_MODE_PARAMS));
         temp.minimumIntervalUs = _minimumIntervalUs;
-        o_NvAPI_Vulkan_SetSleepMode(_lastVkSleepDev, &temp);
+        // Avoid applying Vulkan sleep mode when running on Linux with XeFG —
+        // XeLL/XeFG + Wine/Proton timing primitives can cause extremely long sleeps.
+        if (State::Instance().isRunningOnLinux && State::Instance().activeFgOutput == FGOutput::XeFG)
+        {
+            LOG_INFO("Skipping Vulkan SetSleepMode on Linux with XeFG");
+        }
+        else
+        {
+            o_NvAPI_Vulkan_SetSleepMode(_lastVkSleepDev, &temp);
+        }
     }
 }
 

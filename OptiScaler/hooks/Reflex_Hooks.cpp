@@ -45,8 +45,11 @@ NvAPI_Status ReflexHooks::hkNvAPI_D3D_Sleep(IUnknown* pDev)
     LOG_FUNC();
 #endif
 
-    // On Linux with FSRFG active, skip sleep to avoid delays under Wine/Proton.
-    if (State::Instance().isRunningOnLinux && State::Instance().activeFgOutput == FGOutput::FSRFG)
+    // On Linux with FSRFG or XeFG active, skip sleep to avoid delays under Wine/Proton.
+    if (State::Instance().isRunningOnLinux && 
+        (State::Instance().activeFgOutput == FGOutput::FSRFG || 
+         State::Instance().activeFgOutput == FGOutput::XeFG || 
+         XellHooks::isXellContextBlocked()))
     {
         _lastSleepDev = pDev;
         return NvAPI_Status::NVAPI_OK;

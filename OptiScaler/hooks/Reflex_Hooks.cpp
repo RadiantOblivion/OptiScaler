@@ -45,20 +45,8 @@ NvAPI_Status ReflexHooks::hkNvAPI_D3D_Sleep(IUnknown* pDev)
     LOG_FUNC();
 #endif
 
-    // On Linux with XeFG active, call LowLatency::Sleep to properly trigger XeLL sleep.
-    // The real NvAPI_D3D_Sleep doesn't route to XeLL on Wine/Proton.
-    if (State::Instance().isRunningOnLinux && 
-        (State::Instance().activeFgOutput == FGOutput::XeFG || XellHooks::isXellContextBlocked()))
-    {
-        LOG_INFO("Calling LowLatency::Sleep for XeLL on Linux (activeFgOutput: {})", 
-                  magic_enum::enum_name(State::Instance().activeFgOutput));
-        _lastSleepDev = pDev;
-        // LowLatency::Sleep() is only available on Windows; skip on Linux
-        return NvAPI_Status::NVAPI_OK;
-    }
-
-    // On Linux without XeFG, skip sleep to avoid ~10s delays under Wine/Proton.
-    if (State::Instance().isRunningOnLinux)
+    // On Linux with FSRFG active, skip sleep to avoid delays under Wine/Proton.
+    if (State::Instance().isRunningOnLinux && State::Instance().activeFgOutput == FGOutput::FSRFG)
     {
         _lastSleepDev = pDev;
         return NvAPI_Status::NVAPI_OK;

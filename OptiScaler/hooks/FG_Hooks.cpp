@@ -1365,7 +1365,7 @@ ULONG FGHooks::hkFGRelease(IUnknown* This)
 
 HANDLE STDMETHODCALLTYPE FGHooks::hkFGGetFrameLatencyWaitableObject(IDXGISwapChain2* This)
 {
-    if (State::Instance().isRunningOnLinux && State::Instance().currentRealSwapchain != nullptr)
+    if (State::Instance().isRunningOnLinux && State::Instance().currentRealSwapchain != nullptr && State::Instance().activeFgOutput == FGOutput::FSRFG)
     {
         IDXGISwapChain2* real2 = nullptr;
         if (State::Instance().currentRealSwapchain->QueryInterface(IID_PPV_ARGS(&real2)) == S_OK)
@@ -1385,7 +1385,7 @@ HANDLE STDMETHODCALLTYPE FGHooks::hkFGGetFrameLatencyWaitableObject(IDXGISwapCha
 
 HRESULT STDMETHODCALLTYPE FGHooks::hkFGSetMaximumFrameLatency(IDXGISwapChain2* This, UINT MaxLatency)
 {
-    if (State::Instance().isRunningOnLinux && State::Instance().currentRealSwapchain != nullptr)
+    if (State::Instance().isRunningOnLinux && State::Instance().currentRealSwapchain != nullptr && State::Instance().activeFgOutput == FGOutput::FSRFG)
     {
         IDXGISwapChain2* real2 = nullptr;
         if (State::Instance().currentRealSwapchain->QueryInterface(IID_PPV_ARGS(&real2)) == S_OK)
